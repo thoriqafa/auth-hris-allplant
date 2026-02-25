@@ -24,7 +24,7 @@ class Auth extends CI_Controller {
         $this->load->database();
     }
 
-    public function login()
+    public function loginKaryawan()
     {
         $plantId  = $this->input->post('plant_id');
         $nik      = $this->input->post('nik');
@@ -131,4 +131,113 @@ class Auth extends CI_Controller {
 
         ]);
     }
+
+	public function loginUser()
+	{
+		$plantId  = $this->input->post('plant_id');
+        $nik      = $this->input->post('nik');
+        $password = $this->input->post('password');
+
+        if (!$plantId || !$nik || !$password) {
+            echo json_encode([
+                'status' => 'error',
+                'message' => 'Data tidak lengkap'
+            ]);
+            return;
+        }
+
+        $plant = $this->db->where('plant_id', $plantId)
+                          ->get('plant_config')
+                          ->row();
+
+        if (!$plant) {
+            echo json_encode([
+                'status' => 'error',
+                'message' => 'Plant tidak ditemukan'
+            ]);
+            return;
+        }
+
+        $dbPassword = $this->encryption->decrypt($plant->db_pass);
+
+
+		$plantDb = array(
+            'hostname' => $plant->db_host . ':' . $plant->db_port,
+            'username' => $plant->db_user,
+            'password' => $dbPassword,
+            'database' => $plant->db_name,
+            'dbdriver' => 'mysqli',
+            'dbprefix' => '',
+            'pconnect' => FALSE,
+            'db_debug' => (ENVIRONMENT !== 'production'),
+            'cache_on' => FALSE,
+            'char_set' => 'utf8',
+            'dbcollat' => 'utf8_general_ci',
+        );
+
+
+        $plantConn = $this->load->database($plantDb, TRUE);
+
+        $user = $plantConn->select('
+                    tbl_user.id,
+                    tbl_user.nama,
+                    tbl_user.nama_lengkap,
+					tbl_user.idplant,
+                    tbl_user.id_bagian,
+                    tbl_user.password,
+					tbl_plant.kodeplant as plant_code,
+					tbl_plant.nama as plant_name,
+                    tbl_bagian.kodebagian as bag_code,
+                    tbl_bagian.nama as bag_name
+                ')
+                ->from('tbl_user')
+                ->join('tbl_plant', 'tbl_plant.id = tbl_user.idplant', 'left')
+                ->join('tbl_bagian', 'tbl_bagian.id = tbl_user.id_bagian', 'left')
+                ->where('tbl_user.nik', $nik)
+                ->get()
+                ->row();
+
+        if (!$user) {
+            echo json_encode([
+                'status' => 'error',
+                'message' => 'Username tidak ditemukan'
+            ]);
+            return;
+        }
+
+        $generatedPassword = '*' . strtoupper(sha1(sha1($user->password, true)));
+
+        if ($password !== $generatedPassword) {
+            echo json_encode([
+                'status' => 'error',
+                'message' => 'Password salah'
+            ]);
+            return;
+        }
+
+        echo json_encode([
+            'status' => 'success',
+            'user'   => [
+                'id'   			=> $user->id,
+                'nik'  			=> $user->nik,
+                'nama' 			=> $user->nama,
+				'idplant'		=> $user->idplant,
+				'plant_code'	=> $user->plant_code,
+				'plant_name'	=> $user->plant_name,
+				'idbagian'		=> $user->idbagian,
+				'bag_code'		=> $user->bag_code,
+				'bag_name'		=> $user->bag_name
+            ],
+			'db_config' => [
+				'host'     => $plant->db_host,
+				'port'     => $plant->db_port,
+				'database' => $plant->db_name,
+				'username' => $plant->db_user,
+				'password' => $dbPassword
+			]
+
+        ]);
+	}
+
+
 }
