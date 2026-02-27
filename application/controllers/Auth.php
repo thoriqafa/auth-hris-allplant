@@ -119,7 +119,8 @@ class Auth extends CI_Controller {
 				'plant_name'	=> $user->plant_name,
 				'idbagian'		=> $user->idbagian,
 				'bag_code'		=> $user->bag_code,
-				'bag_name'		=> $user->bag_name
+				'bag_name'		=> $user->bag_name,
+				'role'			=> 'KARYAWAN'
             ],
 			'db_config' => [
 				'host'     => $plant->db_host,
@@ -188,12 +189,14 @@ class Auth extends CI_Controller {
 					tbl_plant.kodeplant as plant_code,
 					tbl_plant.nama as plant_name,
                     tbl_bagian.kodebagian as bag_code,
-                    tbl_bagian.nama as bag_name
+                    tbl_bagian.nama as bag_name,
+					tbl_kecelakaan_kerja_user_role.role_name
                 ')
                 ->from('tbl_user')
                 ->join('tbl_plant', 'tbl_plant.id = tbl_user.idplant', 'left')
                 ->join('tbl_bagian', 'tbl_bagian.id = tbl_user.id_bagian', 'left')
-                ->where('tbl_user.nik', $nik)
+                ->join('tbl_kecelakaan_kerja_user_role', 'tbl_kecelakaan_kerja_user_role.iduser = tbl_user.id', 'left')
+                ->where('tbl_user.nama', $nik)
                 ->get()
                 ->row();
 
@@ -205,9 +208,17 @@ class Auth extends CI_Controller {
             return;
         }
 
-        $generatedPassword = '*' . strtoupper(sha1(sha1($user->password, true)));
+		if (!$user->role_name) {
+			echo json_encode([
+				'status' => 'error',
+				'message' => 'Role user belum didaftarkan.'
+			]);
+			return;
+		}
 
-        if ($password !== $generatedPassword) {
+        $generatedPassword = '*' . strtoupper(sha1(sha1($password, true)));
+
+        if ($generatedPassword !== $user->password) {
             echo json_encode([
                 'status' => 'error',
                 'message' => 'Password salah'
@@ -219,14 +230,15 @@ class Auth extends CI_Controller {
             'status' => 'success',
             'user'   => [
                 'id'   			=> $user->id,
-                'nik'  			=> $user->nik,
-                'nama' 			=> $user->nama,
+                'nik'  			=> $user->nama,
+                'nama' 			=> $user->nama_lengkap,
 				'idplant'		=> $user->idplant,
 				'plant_code'	=> $user->plant_code,
 				'plant_name'	=> $user->plant_name,
-				'idbagian'		=> $user->idbagian,
+				'idbagian'		=> $user->id_bagian,
 				'bag_code'		=> $user->bag_code,
-				'bag_name'		=> $user->bag_name
+				'bag_name'		=> $user->bag_name,
+				'role'			=> $user->role_name
             ],
 			'db_config' => [
 				'host'     => $plant->db_host,
