@@ -179,67 +179,79 @@ class Auth extends CI_Controller {
 
         $plantConn = $this->load->database($plantDb, TRUE);
 
-        $user = $plantConn->select('
-                    tbl_user.id,
-                    tbl_user.nama,
-                    tbl_user.nama_lengkap,
-					tbl_user.idplant,
-                    tbl_user.id_bagian,
-                    tbl_user.password,
-					tbl_plant.kodeplant as plant_code,
-					tbl_plant.nama as plant_name,
-                    tbl_bagian.kodebagian as bag_code,
-                    tbl_bagian.nama as bag_name,
-					tbl_kecelakaan_kerja_user_role.role_name
-                ')
-                ->from('tbl_user')
-                ->join('tbl_plant', 'tbl_plant.id = tbl_user.idplant', 'left')
-                ->join('tbl_bagian', 'tbl_bagian.id = tbl_user.id_bagian', 'left')
-                ->join('tbl_kecelakaan_kerja_user_role', 'tbl_kecelakaan_kerja_user_role.iduser = tbl_user.id', 'left')
-                ->where('tbl_user.nama', $nik)
-                ->get()
-                ->row();
+		$isRoleTableExists = $plantConn->table_exists('tbl_kecelakaan_kerja_user_role');
 
-        if (!$user) {
-            echo json_encode([
-                'status' => 'error',
-                'message' => 'Username tidak ditemukan'
-            ]);
-            return;
-        }
+        $plantConn->select('
+			tbl_user.id,
+			tbl_user.nama,
+			tbl_user.nama_lengkap,
+			tbl_user.idplant,
+			tbl_user.id_bagian,
+			tbl_user.password,
+			tbl_plant.kodeplant as plant_code,
+			tbl_plant.nama as plant_name,
+			tbl_bagian.kodebagian as bag_code,
+			tbl_bagian.nama as bag_name
+		');
 
-		if (!$user->role_name) {
+		if ($isRoleTableExists) {
+			$plantConn->select('tbl_kecelakaan_kerja_user_role.role_name');
+		}
+
+		$plantConn->from('tbl_user')
+				->join('tbl_plant', 'tbl_plant.id = tbl_user.idplant', 'left')
+				->join('tbl_bagian', 'tbl_bagian.id = tbl_user.id_bagian', 'left');
+
+		if ($isRoleTableExists) {
+			$plantConn->join(
+				'tbl_kecelakaan_kerja_user_role',
+				'tbl_kecelakaan_kerja_user_role.iduser = tbl_user.id',
+				'left'
+			);
+		}
+
+		$user = $plantConn->where('tbl_user.nama', $nik)
+						->get()
+						->row();
+
+		if (!$user) {
 			echo json_encode([
 				'status' => 'error',
-				'message' => 'Role user belum didaftarkan.'
+				'message' => 'Username tidak ditemukan'
 			]);
 			return;
 		}
 
-        $generatedPassword = '*' . strtoupper(sha1(sha1($password, true)));
+		$generatedPassword = '*' . strtoupper(sha1(sha1($password, true)));
 
-        if ($generatedPassword !== $user->password) {
-            echo json_encode([
-                'status' => 'error',
-                'message' => 'Password salah'
-            ]);
-            return;
-        }
+		if ($generatedPassword !== $user->password) {
+			echo json_encode([
+				'status' => 'error',
+				'message' => 'Password salah'
+			]);
+			return;
+		}
 
-        echo json_encode([
-            'status' => 'success',
-            'user'   => [
-                'id'   			=> $user->id,
-                'nik'  			=> $user->nama,
-                'nama' 			=> $user->nama_lengkap,
-				'idplant'		=> $user->idplant,
-				'plant_code'	=> $user->plant_code,
-				'plant_name'	=> $user->plant_name,
-				'idbagian'		=> $user->id_bagian,
-				'bag_code'		=> $user->bag_code,
-				'bag_name'		=> $user->bag_name,
-				'role'			=> $user->role_name
-            ],
+		$roleName = 'USER';
+
+		if ($isRoleTableExists && !empty($user->role_name)) {
+			$roleName = $user->role_name;
+		}
+
+		echo json_encode([
+			'status' => 'success',
+			'user'   => [
+				'id'         => $user->id,
+				'nik'        => $user->nama,
+				'nama'       => $user->nama_lengkap,
+				'idplant'    => $user->idplant,
+				'plant_code' => $user->plant_code,
+				'plant_name' => $user->plant_name,
+				'idbagian'   => $user->id_bagian,
+				'bag_code'   => $user->bag_code,
+				'bag_name'   => $user->bag_name,
+				'role'       => $roleName
+			],
 			'db_config' => [
 				'host'     => $plant->db_host,
 				'port'     => $plant->db_port,
@@ -247,8 +259,7 @@ class Auth extends CI_Controller {
 				'username' => $plant->db_user,
 				'password' => $dbPassword
 			]
-
-        ]);
+		]);
 	}
 
 	public function login()
